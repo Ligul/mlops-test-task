@@ -51,6 +51,12 @@ test: ## Run all tests
 test-unit: ## Run unit tests only
 	@docker compose run --rm recommender bash -c "pytest test/unit"
 
+.PHONY: smoke-test
+smoke-test: ## Run the gRPC smoke-test client against the local service (must be running)
+	@docker compose ps --status running --services | grep -q '^recommender$$' \
+		|| { echo "recommender is not running. Start it with: make rebuild"; exit 1; }
+	docker compose run --rm recommender python scripts/smoke_test.py
+
 #
 # Model
 #
