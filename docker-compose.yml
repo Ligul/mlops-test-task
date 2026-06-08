@@ -1,0 +1,12 @@
+services:
+  recommender:
+    build:
+      context: .
+      args:
+        WITH_DEV: 1
+    volumes:
+      - ".:/app"
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:50051:50051"
