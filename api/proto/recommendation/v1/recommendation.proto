@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package recommendation.v1;
+
+service RecommenderService {
+  rpc Recommend(RecommendRequest) returns (RecommendResponse);
+}
+
+message RecommendRequest {
+  repeated int32 item_ids = 1;
+}
+
+message RecommendResponse {
+  repeated int32 item_ids = 1;
+}

@@ -1,5 +1,8 @@
 #!/usr/bin/make
 
+PROJECT_DIR ?= $(shell pwd)
+BUF_IMG ?= bufbuild/buf:1.70.0
+
 #
 # Help
 #
@@ -54,3 +57,17 @@ MODEL_SEED ?= 67
 .PHONY: export-model
 export-model: ## Export PyTorch model to ONNX and verify (OUTPUT=... SEED=...)
 	@docker compose run --rm recommender python scripts/export_model.py --output $(MODEL_OUTPUT) --seed $(MODEL_SEED)
+
+#
+# gRPC
+#
+
+BUF_RUN ?= docker run --rm --platform linux/amd64 --volume "$(PROJECT_DIR):/workspace" --workdir /workspace $(BUF_IMG)
+
+.PHONY: proto-lint
+proto-lint: ## Lint proto files with buf
+	$(BUF_RUN) lint
+
+.PHONY: proto-gen
+proto-gen: proto-lint ## Generate gRPC stubs from proto files
+	$(BUF_RUN) generate
