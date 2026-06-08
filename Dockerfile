@@ -44,4 +44,4 @@ USER appuser
 
 EXPOSE 50051
 
-CMD ["env"]
+CMD ["python", "-m", "command.grpc_server"]

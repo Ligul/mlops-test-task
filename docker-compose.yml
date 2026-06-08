@@ -10,3 +10,9 @@ services:
       - .env
     ports:
       - "127.0.0.1:50051:50051"
+    healthcheck:
+      test: ["CMD", "/bin/grpc_health_probe", "-addr=:50051"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 5s
