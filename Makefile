@@ -47,6 +47,10 @@ lint: ## Check code style and types (black, ruff, pyright)
 test: ## Run all tests
 	@docker compose run --rm recommender bash -c "pytest"
 
+.PHONY: test-unit
+test-unit: ## Run unit tests only
+	@docker compose run --rm recommender bash -c "pytest test/unit"
+
 #
 # Model
 #
