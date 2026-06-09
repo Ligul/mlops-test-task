@@ -14,9 +14,9 @@ _NUM_ITEMS_METADATA_KEY = "num_items"
 class ONNXPredictor(Predictor):
     def __init__(self, model_path: str, providers: list[str]) -> None:
         try:
-            self.session = ort.InferenceSession(model_path, providers=providers)
-            self.input_name = self.session.get_inputs()[0].name
-            self.output_name = self.session.get_outputs()[0].name
+            self._session = ort.InferenceSession(model_path, providers=providers)
+            self._input_name = self._session.get_inputs()[0].name
+            self._output_name = self._session.get_outputs()[0].name
             self._num_items = self._read_num_items()
         except Exception:
             logger.bind(model_path=model_path).exception("Failed to load ONNX model")
@@ -34,13 +34,13 @@ class ONNXPredictor(Predictor):
 
         input_data = np.array(user_history, dtype=np.int64)
 
-        outputs = await asyncio.to_thread(self.session.run, [self.output_name], {self.input_name: input_data})
+        outputs = await asyncio.to_thread(self._session.run, [self._output_name], {self._input_name: input_data})
 
         recommendations = cast("np.ndarray", outputs[0])
         return [ItemId(int(idx)) for idx in recommendations]
 
     def _read_num_items(self) -> int:
-        raw = self.session.get_modelmeta().custom_metadata_map.get(_NUM_ITEMS_METADATA_KEY)
+        raw = self._session.get_modelmeta().custom_metadata_map.get(_NUM_ITEMS_METADATA_KEY)
         if raw is None:
             message = f"model is missing required metadata {_NUM_ITEMS_METADATA_KEY!r}; re-export the model"
             raise ValueError(message)

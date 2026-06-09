@@ -21,9 +21,9 @@ def _make_predictor(
         session.run.side_effect = run_side_effect
     else:
         session.run.return_value = run_return
-    predictor.session = session
-    predictor.input_name = "user_history"
-    predictor.output_name = "recommendations"
+    predictor._session = session
+    predictor._input_name = "user_history"
+    predictor._output_name = "recommendations"
     predictor._num_items = num_items
     return predictor, session
 
@@ -73,7 +73,11 @@ async def test_predict_propagates_inference_error() -> None:
         await predictor.predict([ItemId(3)], request_id="req-1")
 
 
-@pytest.mark.parametrize("bad_id", [-1, 10000, 99999])
+@pytest.mark.parametrize(
+    "bad_id",
+    [-1, 10000, 99999],
+    ids=["negative", "equals-num-items", "above-range"],
+)
 async def test_predict_rejects_item_id_out_of_range(bad_id: int) -> None:
     # Arrange
     predictor, session = _make_predictor(num_items=10000)
