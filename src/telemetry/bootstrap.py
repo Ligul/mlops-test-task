@@ -6,8 +6,6 @@ from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter, SpanExporter
 
-from command.configuration import Config
-
 _CONSOLE = "console"
 _OTLP = "otlp"
 
@@ -21,10 +19,10 @@ def build_span_exporter(kind: str) -> SpanExporter:
     raise ValueError(msg)
 
 
-def setup_tracing(config: Config) -> TracerProvider:
-    resource = Resource.create({"service.name": config.OTEL_SERVICE_NAME, "deployment.environment": config.ENV})
+def setup_tracing(exporter: str, service_name: str, environment: str) -> TracerProvider:
+    resource = Resource.create({"service.name": service_name, "deployment.environment": environment})
     provider = TracerProvider(resource=resource)
-    provider.add_span_processor(BatchSpanProcessor(build_span_exporter(config.OTEL_TRACES_EXPORTER)))
+    provider.add_span_processor(BatchSpanProcessor(build_span_exporter(exporter)))
     trace.set_tracer_provider(provider)
     return provider
 
