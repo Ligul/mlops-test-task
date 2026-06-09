@@ -94,6 +94,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Resolve image name
+        id: image
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+
       - name: Copy compose file
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -108,7 +112,7 @@ jobs:
         env:
           GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
           GHCR_USER: ${{ github.actor }}
-          IMAGE_NAME: ghcr.io/${{ github.repository }}
+          IMAGE_NAME: ${{ steps.image.outputs.name }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
           GRPC_TOKEN: ${{ secrets.GRPC_TOKEN }}
         with:
@@ -117,6 +121,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           envs: GHCR_TOKEN,GHCR_USER,IMAGE_NAME,IMAGE_TAG,GRPC_TOKEN
           script: |
+            set -euo pipefail
             cd /opt/recommender
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
             docker compose -f docker-compose.prod.yml pull
