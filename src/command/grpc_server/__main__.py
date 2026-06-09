@@ -10,10 +10,10 @@ from grpc_reflection.v1alpha import reflection
 from loguru import logger
 
 from command.grpc_server.container import Config, Container
-from command.telemetry import setup_tracing, tracing_interceptors
 from domains.recommendation.adapter.input.grpc_recommender import GrpcRecommender
 from grpc_proto.recommendation.v1 import recommendation_pb2
 from grpc_proto.recommendation.v1.recommendation_pb2_grpc import add_RecommenderServiceServicer_to_server
+from telemetry import setup_tracing, tracing_interceptors
 
 
 class StaticTokenValidationInterceptor(grpc.aio.ServerInterceptor):
@@ -51,7 +51,7 @@ async def serve(
     config: Config = Provide[Container.config_obj],
 ) -> None:
     logger.info("GRPC server starting...")
-    tracer_provider = setup_tracing(config)
+    tracer_provider = setup_tracing(config.OTEL_TRACES_EXPORTER, config.OTEL_SERVICE_NAME, config.ENV)
     server = grpc.aio.server(
         interceptors=[
             *tracing_interceptors(),

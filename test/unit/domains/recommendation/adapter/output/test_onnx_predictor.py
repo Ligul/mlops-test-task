@@ -5,10 +5,15 @@ import pytest
 from loguru import logger
 
 from domains.recommendation.adapter.output.onnx_predictor import ONNXPredictor
-from domains.recommendation.domain import ItemId
+from domains.recommendation.domain import ItemId, ItemIdOutOfRangeError
 
 
-def _make_predictor(*, run_return=None, run_side_effect=None) -> tuple[ONNXPredictor, Mock]:
+def _make_predictor(
+    *,
+    run_return=None,
+    run_side_effect=None,
+    num_items: int = 10000,
+) -> tuple[ONNXPredictor, Mock]:
     # Bypass __init__ so no real ONNX model/session is loaded
     predictor = ONNXPredictor.__new__(ONNXPredictor)
     session = Mock()
@@ -19,6 +24,7 @@ def _make_predictor(*, run_return=None, run_side_effect=None) -> tuple[ONNXPredi
     predictor.session = session
     predictor.input_name = "user_history"
     predictor.output_name = "recommendations"
+    predictor._num_items = num_items
     return predictor, session
 
 
@@ -65,3 +71,45 @@ async def test_predict_propagates_inference_error() -> None:
     # Act / Assert
     with pytest.raises(RuntimeError, match="boom"):
         await predictor.predict([ItemId(3)], request_id="req-1")
+
+
+@pytest.mark.parametrize("bad_id", [-1, 10000, 99999])
+async def test_predict_rejects_item_id_out_of_range(bad_id: int) -> None:
+    # Arrange
+    predictor, session = _make_predictor(num_items=10000)
+
+    # Act / Assert
+    with pytest.raises(ItemIdOutOfRangeError):
+        await predictor.predict([ItemId(3), ItemId(bad_id)], request_id="req-1")
+
+    session.run.assert_not_called()
+
+
+async def test_predict_accepts_boundary_item_ids() -> None:
+    # Arrange
+    predictor, session = _make_predictor(run_return=[np.array([1], dtype=np.int64)], num_items=10000)
+
+    # Act
+    await predictor.predict([ItemId(0), ItemId(9999)], request_id="req-1")
+
+    # Assert
+    session.run.assert_called_once()
+
+
+def test_read_num_items_parses_metadata_value() -> None:
+    # Arrange
+    predictor, session = _make_predictor()
+    session.get_modelmeta.return_value.custom_metadata_map = {"num_items": "10000"}
+
+    # Act / Assert
+    assert predictor._read_num_items() == 10_000
+
+
+def test_read_num_items_raises_when_metadata_missing() -> None:
+    # Arrange
+    predictor, session = _make_predictor()
+    session.get_modelmeta.return_value.custom_metadata_map = {}
+
+    # Act / Assert
+    with pytest.raises(ValueError, match="num_items"):
+        predictor._read_num_items()

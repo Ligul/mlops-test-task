@@ -4,7 +4,7 @@ import grpc
 from loguru import logger
 
 from domains.recommendation.application.port.input import Recommender
-from domains.recommendation.domain import ItemId
+from domains.recommendation.domain import ItemId, ItemIdOutOfRangeError
 from grpc_proto.recommendation.v1 import recommendation_pb2, recommendation_pb2_grpc
 
 _REQUEST_ID_HEADER = "x-request-id"
@@ -32,6 +32,10 @@ class GrpcRecommender(recommendation_pb2_grpc.RecommenderServiceServicer):
             result = await self._recommender.recommend(
                 [ItemId(item_id) for item_id in request.item_ids], request_id=request_id
             )
+        except ItemIdOutOfRangeError as exc:
+            log.bind(item_id=exc.item_id, num_items=exc.num_items).info("Recommend rejected: item id out of range")
+            await context.abort(grpc.StatusCode.INVALID_ARGUMENT, str(exc))
+            raise
         except Exception:
             log.exception("Recommend failed")
             await context.abort(grpc.StatusCode.INTERNAL, "recommendation failed")
