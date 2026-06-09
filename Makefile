@@ -37,11 +37,11 @@ down: ## Stop and remove containers
 
 .PHONY: format
 format: ## Auto-format code with black and ruff
-	@docker compose run --rm recommender bash -c "black src/ test/ && ruff check --fix-only --unsafe-fixes src/ test/"
+	@docker compose run --rm recommender bash -c "black src/ test/ && ruff check --no-cache --fix-only --unsafe-fixes src/ test/"
 
 .PHONY: lint
 lint: ## Check code style and types (black, ruff, pyright)
-	@docker compose run --rm recommender bash -c "black --check src/ && ruff check src/ && pyright"
+	@docker compose run --rm recommender bash -c "black --check src/ && ruff check --no-cache src/ && pyright"
 
 .PHONY: test
 test: ## Run all tests

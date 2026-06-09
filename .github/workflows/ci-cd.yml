@@ -31,7 +31,7 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Lint
-        run: docker run --rm app:ci bash -c "black --check src/ && ruff check src/ && pyright"
+        run: docker run --rm app:ci bash -c "black --check src/ && ruff check --no-cache src/ && pyright"
 
       - name: Test
         run: docker run --rm app:ci bash -c "pytest test/unit"
