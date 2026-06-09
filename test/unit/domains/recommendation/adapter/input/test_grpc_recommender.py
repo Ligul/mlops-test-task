@@ -6,8 +6,21 @@ import pytest
 
 from domains.recommendation.adapter.input.grpc_recommender import GrpcRecommender
 from domains.recommendation.application.port.input import Recommender
-from domains.recommendation.domain import ItemId
+from domains.recommendation.domain import ItemId, ItemIdOutOfRangeError
 from grpc_proto.recommendation.v1 import recommendation_pb2
+
+
+class _AbortError(Exception):
+    # stand-in for grpc.aio's private abort exception
+    pass
+
+
+@pytest.fixture
+def aborting_context() -> AsyncMock:
+    context = AsyncMock()
+    context.invocation_metadata = Mock(return_value=())
+    context.abort = AsyncMock(side_effect=_AbortError)
+    return context
 
 
 async def test_recommend_maps_request_ids_to_domain_and_response_back_to_int() -> None:
@@ -27,24 +40,46 @@ async def test_recommend_maps_request_ids_to_domain_and_response_back_to_int() -
     assert list(response.item_ids) == [5, 9]
 
 
-async def test_recommend_aborts_with_internal_when_recommendation_fails() -> None:
+async def test_recommend_aborts_with_internal_when_recommendation_fails(aborting_context: AsyncMock) -> None:
     # Arrange
-    class _AbortError(Exception):
-        pass
-
     recommender = Mock(spec=Recommender)
     recommender.recommend = AsyncMock(side_effect=RuntimeError("boom"))
     service = GrpcRecommender(recommender)
-    context = AsyncMock()
-    context.invocation_metadata = Mock(return_value=())
-    # grpc.aio.abort() aborts by raising; its real type is private, so we fake it
-    context.abort = AsyncMock(side_effect=_AbortError)
     request = recommendation_pb2.RecommendRequest(item_ids=[1])
 
     # Act / Assert
     with pytest.raises(_AbortError):
-        await service.Recommend(request, context)
-    context.abort.assert_awaited_once_with(grpc.StatusCode.INTERNAL, "recommendation failed")
+        await service.Recommend(request, aborting_context)
+    aborting_context.abort.assert_awaited_once()
+    assert aborting_context.abort.await_args.args[0] == grpc.StatusCode.INTERNAL
+
+
+async def test_recommend_aborts_with_invalid_argument_on_out_of_range_item(aborting_context: AsyncMock) -> None:
+    # Arrange
+    recommender = Mock(spec=Recommender)
+    recommender.recommend = AsyncMock(side_effect=ItemIdOutOfRangeError(10000, 10000))
+    service = GrpcRecommender(recommender)
+    request = recommendation_pb2.RecommendRequest(item_ids=[10000])
+
+    # Act / Assert
+    with pytest.raises(_AbortError):
+        await service.Recommend(request, aborting_context)
+    aborting_context.abort.assert_awaited_once()
+    assert aborting_context.abort.await_args.args[0] == grpc.StatusCode.INVALID_ARGUMENT
+
+
+async def test_recommend_aborts_with_internal_on_unexpected_value_error(aborting_context: AsyncMock) -> None:
+    # Arrange
+    recommender = Mock(spec=Recommender)
+    recommender.recommend = AsyncMock(side_effect=ValueError("unexpected"))
+    service = GrpcRecommender(recommender)
+    request = recommendation_pb2.RecommendRequest(item_ids=[1])
+
+    # Act / Assert
+    with pytest.raises(_AbortError):
+        await service.Recommend(request, aborting_context)
+    aborting_context.abort.assert_awaited_once()
+    assert aborting_context.abort.await_args.args[0] == grpc.StatusCode.INTERNAL
 
 
 async def test_recommend_propagates_upstream_request_id() -> None:

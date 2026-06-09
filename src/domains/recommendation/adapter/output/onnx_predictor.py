@@ -6,7 +6,9 @@ import onnxruntime as ort
 from loguru import logger
 
 from domains.recommendation.application.port.output import Predictor
-from domains.recommendation.domain import ItemId
+from domains.recommendation.domain import ItemId, ItemIdOutOfRangeError
+
+_NUM_ITEMS_METADATA_KEY = "num_items"
 
 
 class ONNXPredictor(Predictor):
@@ -15,10 +17,11 @@ class ONNXPredictor(Predictor):
             self.session = ort.InferenceSession(model_path, providers=providers)
             self.input_name = self.session.get_inputs()[0].name
             self.output_name = self.session.get_outputs()[0].name
+            self._num_items = self._read_num_items()
         except Exception:
             logger.bind(model_path=model_path).exception("Failed to load ONNX model")
             raise
-        logger.bind(model_path=model_path, providers=providers).info("ONNX model loaded")
+        logger.bind(model_path=model_path, providers=providers, num_items=self._num_items).info("ONNX model loaded")
 
     async def predict(self, user_history: list[ItemId], request_id: str) -> list[ItemId]:
         if not user_history:
@@ -27,9 +30,23 @@ class ONNXPredictor(Predictor):
             )
             return []
 
+        self._validate(user_history)
+
         input_data = np.array(user_history, dtype=np.int64)
 
         outputs = await asyncio.to_thread(self.session.run, [self.output_name], {self.input_name: input_data})
 
         recommendations = cast("np.ndarray", outputs[0])
         return [ItemId(int(idx)) for idx in recommendations]
+
+    def _read_num_items(self) -> int:
+        raw = self.session.get_modelmeta().custom_metadata_map.get(_NUM_ITEMS_METADATA_KEY)
+        if raw is None:
+            message = f"model is missing required metadata {_NUM_ITEMS_METADATA_KEY!r}; re-export the model"
+            raise ValueError(message)
+        return int(raw)
+
+    def _validate(self, user_history: list[ItemId]) -> None:
+        for item_id in user_history:
+            if item_id < 0 or item_id >= self._num_items:
+                raise ItemIdOutOfRangeError(item_id, self._num_items)

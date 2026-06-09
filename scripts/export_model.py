@@ -31,6 +31,8 @@ EMBEDDING_DIM = 32
 DEFAULT_NUM_RECOMMENDATIONS = 10
 OPSET_VERSION = 17
 
+NUM_ITEMS_METADATA_KEY = "num_items"
+
 
 class Model(nn.Module):
     _item_embeddings: torch.Tensor
@@ -70,6 +72,14 @@ def export(output_path: Path, seed: int) -> None:
             dynamo=False,
         )
     log.info("export done: %.2f MB", output_path.stat().st_size / 1024 / 1024)
+
+    # Persist the item vocabulary size in the model
+    model_proto = onnx.load(str(output_path))
+    metadata = model_proto.metadata_props.add()
+    metadata.key = NUM_ITEMS_METADATA_KEY
+    metadata.value = str(NUM_ITEMS)
+    onnx.save(model_proto, str(output_path))
+    log.info("embedded metadata %s=%d", NUM_ITEMS_METADATA_KEY, NUM_ITEMS)
 
     onnx.checker.check_model(onnx.load(str(output_path)))
     log.info("onnx graph check passed")
