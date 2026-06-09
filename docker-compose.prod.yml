@@ -2,8 +2,10 @@ services:
   recommender:
     image: ${IMAGE_NAME}:${IMAGE_TAG:-latest}
     restart: unless-stopped
-    env_file:
-      - .env
+    environment:
+      ENV: prod
+      ONNX_PROVIDERS: '["CPUExecutionProvider"]'
+      GRPC_TOKEN: ${GRPC_TOKEN:?GRPC_TOKEN must be provided by the deploy pipeline}
     ports:
       - "0.0.0.0:50051:50051"
     healthcheck:
