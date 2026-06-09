@@ -1,4 +1,5 @@
 import asyncio
+import signal
 from typing import Any, Callable
 
 import grpc
@@ -9,6 +10,7 @@ from grpc_reflection.v1alpha import reflection
 from loguru import logger
 
 from command.grpc_server.container import Config, Container
+from command.telemetry import setup_tracing, tracing_interceptors
 from domains.recommendation.adapter.input.grpc_recommender import GrpcRecommender
 from grpc_proto.recommendation.v1 import recommendation_pb2
 from grpc_proto.recommendation.v1.recommendation_pb2_grpc import add_RecommenderServiceServicer_to_server
@@ -49,8 +51,12 @@ async def serve(
     config: Config = Provide[Container.config_obj],
 ) -> None:
     logger.info("GRPC server starting...")
+    tracer_provider = setup_tracing(config)
     server = grpc.aio.server(
-        interceptors=[StaticTokenValidationInterceptor(config.GRPC_TOKEN.get_secret_value())],
+        interceptors=[
+            *tracing_interceptors(),
+            StaticTokenValidationInterceptor(config.GRPC_TOKEN.get_secret_value()),
+        ],
     )
     add_RecommenderServiceServicer_to_server(grpc_recommender, server)
     health_servicer = health.aio.HealthServicer()  # pyright: ignore[reportAttributeAccessIssue]
@@ -69,7 +75,17 @@ async def serve(
     server.add_insecure_port(f"[::]:{config.GRPC_PORT}")
     await server.start()
     logger.info(f"GRPC server started on port {config.GRPC_PORT}!")
-    await server.wait_for_termination()
+
+    loop = asyncio.get_running_loop()
+    shutdown = asyncio.Event()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, shutdown.set)
+    await shutdown.wait()
+
+    logger.info("GRPC server stopping...")
+    await server.stop(grace=5.0)
+    tracer_provider.shutdown()
+    logger.info("GRPC server stopped")
 
 
 if __name__ == "__main__":

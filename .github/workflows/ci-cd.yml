@@ -115,11 +115,12 @@ jobs:
           IMAGE_NAME: ${{ steps.image.outputs.name }}
           IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
           GRPC_TOKEN: ${{ secrets.GRPC_TOKEN }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GHCR_TOKEN,GHCR_USER,IMAGE_NAME,IMAGE_TAG,GRPC_TOKEN
+          envs: GHCR_TOKEN,GHCR_USER,IMAGE_NAME,IMAGE_TAG,GRPC_TOKEN,OTEL_EXPORTER_OTLP_HEADERS
           script: |
             set -euo pipefail
             cd /opt/recommender

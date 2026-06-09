@@ -13,3 +13,6 @@ class Config(BaseSettings):
 
     MODEL_PATH: str = Field(default="models/model.onnx")
     ONNX_PROVIDERS: list[str] = Field(default=["CPUExecutionProvider"])
+
+    OTEL_TRACES_EXPORTER: str = Field(default="console")
+    OTEL_SERVICE_NAME: str = Field(default="recommender")
